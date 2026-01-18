@@ -418,7 +418,7 @@ int main()
             glm::mat4 rotationMat = glm::mat4(1.0f);
             rotationMat[0] = glm::vec4(camRight, 0.0f);
             rotationMat[1] = glm::vec4(camUp, 0.0f);
-            rotationMat[2] = glm::vec4(-camFront, 0.0f); 
+            rotationMat[2] = glm::vec4(-camFront, 0.0f);
 
             gunModel = gunModel * rotationMat;
 
