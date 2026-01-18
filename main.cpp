@@ -97,6 +97,30 @@ glm::vec2 WorldToScreen(glm::vec3 pos, glm::mat4 view, glm::mat4 proj, float wid
     return glm::vec2(((ndc.x + 1.0f) / 2.0f) * width, ((1.0f - ndc.y) / 2.0f) * height);
 }
 
+float getTerrainHeight(float x, float z) {
+    float groundY = -4.0f;
+
+    float distToVolcano = glm::distance(glm::vec2(x, z), glm::vec2(volcanoPos.x, volcanoPos.z));
+
+    float baseRadius = 6.0f;
+    float rimRadius = 1.5f;
+    float peakHeight = 2.5f;
+    float holeDepth = -6.0f;
+
+    if (distToVolcano < baseRadius) {
+        if (distToVolcano > rimRadius) {
+            float t = (baseRadius - distToVolcano) / (baseRadius - rimRadius);
+            return groundY + t * peakHeight;
+        }
+        else {
+            float t = distToVolcano / rimRadius;
+            return holeDepth + t * ((groundY + peakHeight) - holeDepth);
+        }
+    }
+
+    return groundY;
+}
+
 int main()
 {
     srand(static_cast<unsigned int>(time(0)));
@@ -201,6 +225,16 @@ int main()
     treePositions.push_back(glm::vec3(-140.0f, -4.0f, -115.0f));
     treePositions.push_back(glm::vec3(-160.0f, -4.0f, -110.0f));
     treePositions.push_back(glm::vec3(-150.0f, -4.0f, -140.0f));
+    treePositions.push_back(glm::vec3(-120.0f, -4.0f, -100.0f));
+    treePositions.push_back(glm::vec3(-110.0f, -4.0f, -90.0f));
+    treePositions.push_back(glm::vec3(-100.0f, -4.0f, -130.0f));
+    treePositions.push_back(glm::vec3(-80.0f, -4.0f, -120.0f));
+    treePositions.push_back(glm::vec3(-50.0f, -4.0f, 50.0f));
+    treePositions.push_back(glm::vec3(-40.0f, -4.0f, 60.0f));
+    treePositions.push_back(glm::vec3(40.0f, -4.0f, 40.0f));
+    treePositions.push_back(glm::vec3(50.0f, -4.0f, 30.0f));
+    treePositions.push_back(glm::vec3(20.0f, -4.0f, -80.0f));
+    treePositions.push_back(glm::vec3(30.0f, -4.0f, -90.0f));
 
     zombies.push_back({ glm::vec3(-10.0f, -4.0f, -110.0f), 1 });
     zombies.push_back({ glm::vec3(10.0f, -4.0f, -130.0f), 2 });
@@ -299,13 +333,12 @@ int main()
         }
 
         glm::vec3 currentCamPos = camera.getCameraPosition();
+
         if (!freeCam) {
-            float targetHeight = isRiding ? 18.0f : 16.0f;
-            if (glm::distance(glm::vec2(currentCamPos.x, currentCamPos.z), glm::vec2(volcanoPos.x, volcanoPos.z)) < 40.0f) {
-                targetHeight = 35.0f;
-            }
-            camera.setCameraPosition(glm::vec3(currentCamPos.x, targetHeight, currentCamPos.z));
-            playerWorldPos = glm::vec3(currentCamPos.x, 0.0f, currentCamPos.z);
+            float playerHeight = isRiding ? 25.0f : 22.0f; 
+            float terrainY = getTerrainHeight(currentCamPos.x, currentCamPos.z);
+            camera.setCameraPosition(glm::vec3(currentCamPos.x, terrainY + playerHeight, currentCamPos.z));
+            playerWorldPos = glm::vec3(currentCamPos.x, terrainY, currentCamPos.z);
         }
 
         for (auto& z : zombies) {
@@ -326,7 +359,7 @@ int main()
 
         for (auto& b : bullets) {
             glm::mat4 model = glm::translate(glm::mat4(1.0f), b.position);
-            model = glm::scale(model, glm::vec3(1.5f));
+            model = glm::scale(model, glm::vec3(3.0f));
             glUniformMatrix4fv(glGetUniformLocation(sunShader.getId(), "MVP"), 1, GL_FALSE, &((ProjectionMatrix * ViewMatrix * model)[0][0]));
             bulletModel.draw(sunShader);
         }
@@ -378,11 +411,11 @@ int main()
         DrawMesh(horse, drawHorsePos, glm::vec3(0.5f), true);
 
         glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texLava); glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
-        DrawMesh(volcano, volcanoPos, glm::vec3(0.5f), true);
+        DrawMesh(volcano, volcanoPos, glm::vec3(0.3f), true);
 
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 0.0f, 0.6f, 0.0f);
         glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 0);
-        for (const auto& pos : treePositions) DrawMesh(treeModel, pos, glm::vec3(3.0f), false);
+        for (const auto& pos : treePositions) DrawMesh(treeModel, pos, glm::vec3(6.0f), false);
 
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 1.0f, 1.0f, 1.0f);
         glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 1);
@@ -397,7 +430,7 @@ int main()
 
         float playerY = isRiding ? -1.5f : -4.0f;
         glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texMan); glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
-        DrawMesh(playerBody, glm::vec3(playerWorldPos.x, playerY, playerWorldPos.z), glm::vec3(0.1f), true);
+        DrawMesh(playerBody, playerWorldPos + glm::vec3(0, playerY - (-4.0f), 0), glm::vec3(0.1f), true);
 
         glm::vec3 camFront = camera.getCameraViewDirection();
         glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -412,23 +445,16 @@ int main()
         }
         else if (currentItem == 2 && hasGun) {
             glm::vec3 renderPos = camera.getCameraPosition() + (camFront * 1.5f) + (camRight * 0.4f) - (camUp * 0.4f);
-
             glm::mat4 gunModel = glm::translate(glm::mat4(1.0f), renderPos);
-
             glm::mat4 rotationMat = glm::mat4(1.0f);
             rotationMat[0] = glm::vec4(camRight, 0.0f);
             rotationMat[1] = glm::vec4(camUp, 0.0f);
             rotationMat[2] = glm::vec4(-camFront, 0.0f);
-
             gunModel = gunModel * rotationMat;
-
             gunModel = glm::scale(gunModel, glm::vec3(3.5f));
-
             glUniformMatrix4fv(glGetUniformLocation(shader.getId(), "model"), 1, GL_FALSE, &gunModel[0][0]);
-
             glm::mat4 mvp = ProjectionMatrix * ViewMatrix * gunModel;
             glUniformMatrix4fv(glGetUniformLocation(shader.getId(), "MVP"), 1, GL_FALSE, &mvp[0][0]);
-
             glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 0.3f, 0.3f, 0.3f);
             glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 0);
             playerHand.draw(shader);
@@ -469,20 +495,46 @@ void processKeyboardInput() {
     float cameraSpeed = (isRiding ? 80.0f : 30.0f) * deltaTime;
     if (freeCam) cameraSpeed = 100.0f * deltaTime;
 
+    glm::vec3 nextPos = playerWorldPos;
+    bool moving = false;
+
+    if (window.isPressed(GLFW_KEY_W)) {
+        nextPos += camera.getCameraViewDirection() * cameraSpeed;
+        moving = true;
+    }
+    if (window.isPressed(GLFW_KEY_S)) {
+        nextPos -= camera.getCameraViewDirection() * cameraSpeed;
+        moving = true;
+    }
+    if (window.isPressed(GLFW_KEY_A)) {
+        nextPos -= glm::normalize(glm::cross(camera.getCameraViewDirection(), camera.getCameraUp())) * cameraSpeed;
+        moving = true;
+    }
+    if (window.isPressed(GLFW_KEY_D)) {
+        nextPos += glm::normalize(glm::cross(camera.getCameraViewDirection(), camera.getCameraUp())) * cameraSpeed;
+        moving = true;
+    }
+
     if (!freeCam && !isInsideHouse) {
-        if (glm::distance(playerWorldPos, housePos) < 25.0f) cameraSpeed *= 0.1f;
-        if (glm::distance(playerWorldPos, hospitalPos) < 15.0f) cameraSpeed *= 0.1f;
-        if (glm::distance(playerWorldPos, stablePos) < 10.0f) cameraSpeed *= 0.1f;
+        if (glm::distance(nextPos, housePos) < 25.0f ||
+            glm::distance(nextPos, hospitalPos) < 15.0f ||
+            glm::distance(nextPos, stablePos) < 10.0f) {
+            moving = false;
+        }
 
         for (const auto& tPos : treePositions) {
-            if (glm::distance(playerWorldPos, tPos) < 5.0f) cameraSpeed *= 0.1f;
+            if (glm::distance(nextPos, tPos) < 5.0f) {
+                moving = false;
+            }
         }
     }
 
-    if (window.isPressed(GLFW_KEY_W)) camera.keyboardMoveFront(cameraSpeed);
-    if (window.isPressed(GLFW_KEY_S)) camera.keyboardMoveBack(cameraSpeed);
-    if (window.isPressed(GLFW_KEY_A)) camera.keyboardMoveLeft(cameraSpeed);
-    if (window.isPressed(GLFW_KEY_D)) camera.keyboardMoveRight(cameraSpeed);
+    if (moving) {
+        if (window.isPressed(GLFW_KEY_W)) camera.keyboardMoveFront(cameraSpeed);
+        if (window.isPressed(GLFW_KEY_S)) camera.keyboardMoveBack(cameraSpeed);
+        if (window.isPressed(GLFW_KEY_A)) camera.keyboardMoveLeft(cameraSpeed);
+        if (window.isPressed(GLFW_KEY_D)) camera.keyboardMoveRight(cameraSpeed);
+    }
 
     if (freeCam) {
         if (window.isPressed(GLFW_KEY_R)) camera.keyboardMoveUp(cameraSpeed);
@@ -548,7 +600,7 @@ void updateGameLogic() {
         bullets[i].lifeTime -= deltaTime;
 
         for (auto& z : zombies) {
-            if (!z.isDead && glm::distance(bullets[i].position, z.pos) < 5.0f) {
+            if (!z.isDead && glm::distance(bullets[i].position, z.pos) < 15.0f) {
                 z.hp--;
                 bullets[i].lifeTime = 0;
                 if (z.hp <= 0) {
