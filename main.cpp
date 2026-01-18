@@ -228,7 +228,6 @@ int main()
         processMouseInput();
         updateGameLogic();
 
-        // CHANGED FOV FROM 90 TO 60
         glm::mat4 ProjectionMatrix = glm::perspective(90.0f, (float)window.getWidth() / (float)window.getHeight(), 0.1f, 10000.0f);
         glm::mat4 ViewMatrix = glm::lookAt(camera.getCameraPosition(), camera.getCameraPosition() + camera.getCameraViewDirection(), camera.getCameraUp());
 
@@ -327,7 +326,7 @@ int main()
 
         for (auto& b : bullets) {
             glm::mat4 model = glm::translate(glm::mat4(1.0f), b.position);
-            model = glm::scale(model, glm::vec3(0.5f));
+            model = glm::scale(model, glm::vec3(1.5f));
             glUniformMatrix4fv(glGetUniformLocation(sunShader.getId(), "MVP"), 1, GL_FALSE, &((ProjectionMatrix * ViewMatrix * model)[0][0]));
             bulletModel.draw(sunShader);
         }
@@ -413,9 +412,26 @@ int main()
         }
         else if (currentItem == 2 && hasGun) {
             glm::vec3 renderPos = camera.getCameraPosition() + (camFront * 1.5f) + (camRight * 0.4f) - (camUp * 0.4f);
+
+            glm::mat4 gunModel = glm::translate(glm::mat4(1.0f), renderPos);
+
+            glm::mat4 rotationMat = glm::mat4(1.0f);
+            rotationMat[0] = glm::vec4(camRight, 0.0f);
+            rotationMat[1] = glm::vec4(camUp, 0.0f);
+            rotationMat[2] = glm::vec4(-camFront, 0.0f); 
+
+            gunModel = gunModel * rotationMat;
+
+            gunModel = glm::scale(gunModel, glm::vec3(3.5f));
+
+            glUniformMatrix4fv(glGetUniformLocation(shader.getId(), "model"), 1, GL_FALSE, &gunModel[0][0]);
+
+            glm::mat4 mvp = ProjectionMatrix * ViewMatrix * gunModel;
+            glUniformMatrix4fv(glGetUniformLocation(shader.getId(), "MVP"), 1, GL_FALSE, &mvp[0][0]);
+
             glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 0.3f, 0.3f, 0.3f);
             glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 0);
-            DrawMesh(playerHand, renderPos, glm::vec3(3.5f), false);
+            playerHand.draw(shader);
         }
         else if (currentItem == 3 && hasKey) {
             glm::vec3 renderPos = camera.getCameraPosition() + (camFront * 1.5f) + (camRight * 0.4f) - (camUp * 0.4f);
