@@ -228,7 +228,8 @@ int main()
         processMouseInput();
         updateGameLogic();
 
-        glm::mat4 ProjectionMatrix = glm::perspective(glm::radians(90.0f), (float)window.getWidth() / (float)window.getHeight(), 0.1f, 10000.0f);
+        // CHANGED FOV FROM 90 TO 60
+        glm::mat4 ProjectionMatrix = glm::perspective(90.0f, (float)window.getWidth() / (float)window.getHeight(), 0.1f, 10000.0f);
         glm::mat4 ViewMatrix = glm::lookAt(camera.getCameraPosition(), camera.getCameraPosition() + camera.getCameraViewDirection(), camera.getCameraUp());
 
         if (showInventory) {
