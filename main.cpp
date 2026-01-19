@@ -78,6 +78,7 @@ bool isInsideHouse = false;
 bool showInventory = false;
 int currentItem = 0;
 
+
 glm::vec3 horsePos(0.0f, -4.0f, -120.0f);
 glm::vec3 playerWorldPos(0.0f, 0.0f, 0.0f);
 glm::vec3 housePos(-80.0f, -3.0f, -60.0f);
@@ -87,7 +88,11 @@ glm::vec3 hospitalPos(0.0f, -4.0f, 0.0f);
 glm::vec3 stablePos(0.0f, -4.0f, -120.0f);
 glm::vec3 volcanoPos(150.0f, -4.0f, 150.0f);
 
+
+float volcanoScale = 0.033f;
+
 std::vector<glm::vec3> treePositions;
+std::vector<glm::vec3> lavaPositions; 
 std::vector<Zombie> zombies;
 
 glm::vec2 WorldToScreen(glm::vec3 pos, glm::mat4 view, glm::mat4 proj, float width, float height) {
@@ -97,15 +102,17 @@ glm::vec2 WorldToScreen(glm::vec3 pos, glm::mat4 view, glm::mat4 proj, float wid
     return glm::vec2(((ndc.x + 1.0f) / 2.0f) * width, ((1.0f - ndc.y) / 2.0f) * height);
 }
 
+
 float getTerrainHeight(float x, float z) {
-    float groundY = -4.0f;
+    float groundY = -4.0f; 
 
     float distToVolcano = glm::distance(glm::vec2(x, z), glm::vec2(volcanoPos.x, volcanoPos.z));
 
-    float baseRadius = 6.0f;
-    float rimRadius = 1.5f;
-    float peakHeight = 2.5f;
-    float holeDepth = -6.0f;
+
+    float baseRadius = 12.0f;
+    float rimRadius = 3.0f;
+    float peakHeight = 5.0f;
+    float holeDepth = -12.0f;
 
     if (distToVolcano < baseRadius) {
         if (distToVolcano > rimRadius) {
@@ -204,6 +211,11 @@ int main()
     MeshLoaderObj loader;
     Mesh sun = loader.loadObj("Resources/Models/sphere.obj");
     Mesh plane = loader.loadObj("Resources/Models/maptree.obj", orangeTextures);
+
+  
+    Mesh lavamap = loader.loadObj("Resources/Models/lavamap.obj", orangeTextures);
+    Mesh lava = loader.loadObj("Resources/Models/lava.obj", orangeTextures);
+
     Mesh hospital = loader.loadObj("Resources/Models/hospital_room.obj", woodTextures);
     Mesh stable = loader.loadObj("Resources/Models/stable.obj", stableTextures);
     Mesh horse = loader.loadObj("Resources/Models/horse.obj", orangeTextures);
@@ -235,6 +247,20 @@ int main()
     treePositions.push_back(glm::vec3(50.0f, -4.0f, 30.0f));
     treePositions.push_back(glm::vec3(20.0f, -4.0f, -80.0f));
     treePositions.push_back(glm::vec3(30.0f, -4.0f, -90.0f));
+
+
+    float tileWidth = 200.0f; 
+    int gridRange = 3; 
+
+    for (int x = -gridRange; x <= gridRange; x++) {
+        for (int z = -gridRange; z <= gridRange; z++) {
+            
+            if (x == 0 && z == 0) continue;
+
+
+            lavaPositions.push_back(glm::vec3(x * tileWidth, -25.0f, z * tileWidth));
+        }
+    }
 
     zombies.push_back({ glm::vec3(-10.0f, -4.0f, -110.0f), 1 });
     zombies.push_back({ glm::vec3(10.0f, -4.0f, -130.0f), 2 });
@@ -335,7 +361,7 @@ int main()
         glm::vec3 currentCamPos = camera.getCameraPosition();
 
         if (!freeCam) {
-            float playerHeight = isRiding ? 25.0f : 22.0f; 
+            float playerHeight = isRiding ? 25.0f : 22.0f;
             float terrainY = getTerrainHeight(currentCamPos.x, currentCamPos.z);
             camera.setCameraPosition(glm::vec3(currentCamPos.x, terrainY + playerHeight, currentCamPos.z));
             playerWorldPos = glm::vec3(currentCamPos.x, terrainY, currentCamPos.z);
@@ -390,6 +416,13 @@ int main()
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 0.25f, 0.7f, 0.25f);
         DrawMesh(plane, glm::vec3(0, -20, 0), glm::vec3(1.0f), false);
 
+
+        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texOrange); glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
+        for (const auto& pos : lavaPositions) {
+            DrawMesh(lavamap, pos, glm::vec3(1.0f), true);
+            DrawMesh(lava, pos, glm::vec3(1.0f), true);
+        }
+
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 1.0f, 1.0f, 1.0f);
         glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texWood); glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
         DrawMesh(hospital, hospitalPos, glm::vec3(7.0f), true);
@@ -411,7 +444,7 @@ int main()
         DrawMesh(horse, drawHorsePos, glm::vec3(0.5f), true);
 
         glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texLava); glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
-        DrawMesh(volcano, volcanoPos, glm::vec3(0.3f), true);
+        DrawMesh(volcano, volcanoPos, glm::vec3(volcanoScale), true);
 
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 0.0f, 0.6f, 0.0f);
         glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 0);
@@ -550,7 +583,7 @@ void processKeyboardInput() {
     iLast = iCurr;
 
     static bool fiveLast = false; bool fiveCurr = window.isPressed(GLFW_KEY_5);
-    if (fiveCurr && !fiveLast) { freeCam = !freeCam; if (!freeCam) { float h = isRiding ? 18.0f : 16.0f; camera.setCameraPosition(glm::vec3(playerWorldPos.x, h, playerWorldPos.z)); } }
+    if (fiveCurr && !fiveLast) { freeCam = !freeCam; if (!freeCam) { float h = isRiding ? 22.0f : 20.0f; camera.setCameraPosition(glm::vec3(playerWorldPos.x, h, playerWorldPos.z)); } }
     fiveLast = fiveCurr;
 
     static bool fLast = false; bool fCurr = window.isPressed(GLFW_KEY_F);
