@@ -1,4 +1,4 @@
-﻿#include "Graphics/window.h"
+#include "Graphics/window.h"
 #include "Camera/camera.h"
 #include "Shaders/shader.h"
 #include "Model Loading/mesh.h"
@@ -15,9 +15,9 @@
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_opengl3.h"
 
-#include <C:\Users\a7lat\Downloads\TESTGROUND\GameEngine2025\GameEngine\Dependencies\glm/glm.hpp>
-#include <C:\Users\a7lat\Downloads\TESTGROUND\GameEngine2025\GameEngine\Dependencies\glm/gtc/matrix_transform.hpp>
-#include <C:\Users\a7lat\Downloads\TESTGROUND\GameEngine2025\GameEngine\Dependencies\glm/gtc/type_ptr.hpp>
+#include <C:\Users\Msi\Documents\Scoala\ACG\game3d\TESTGROUND\GameEngine2025\GameEngine\Dependencies\glm\glm.hpp>
+#include <C:\Users\Msi\Documents\Scoala\ACG\game3d\TESTGROUND\GameEngine2025\GameEngine\Dependencies\glm\gtc\matrix_transform.hpp>
+#include <C:\Users\Msi\Documents\Scoala\ACG\game3d\TESTGROUND\GameEngine2025\GameEngine\Dependencies\glm\gtc\type_ptr.hpp>
 
 GLuint loadCubemap(std::vector<std::string> faces);
 
@@ -92,7 +92,7 @@ glm::vec3 volcanoPos(150.0f, -4.0f, 150.0f);
 float volcanoScale = 0.033f;
 
 std::vector<glm::vec3> treePositions;
-std::vector<glm::vec3> lavaPositions; 
+std::vector<glm::vec3> lavaPositions;
 std::vector<Zombie> zombies;
 
 glm::vec2 WorldToScreen(glm::vec3 pos, glm::mat4 view, glm::mat4 proj, float width, float height) {
@@ -104,7 +104,7 @@ glm::vec2 WorldToScreen(glm::vec3 pos, glm::mat4 view, glm::mat4 proj, float wid
 
 
 float getTerrainHeight(float x, float z) {
-    float groundY = -4.0f; 
+    float groundY = -4.0f;
 
     float distToVolcano = glm::distance(glm::vec2(x, z), glm::vec2(volcanoPos.x, volcanoPos.z));
 
@@ -212,7 +212,7 @@ int main()
     Mesh sun = loader.loadObj("Resources/Models/sphere.obj");
     Mesh plane = loader.loadObj("Resources/Models/maptree.obj", orangeTextures);
 
-  
+
     Mesh lavamap = loader.loadObj("Resources/Models/lavamap.obj", orangeTextures);
     Mesh lava = loader.loadObj("Resources/Models/lava.obj", orangeTextures);
 
@@ -249,12 +249,12 @@ int main()
     treePositions.push_back(glm::vec3(30.0f, -4.0f, -90.0f));
 
 
-    float tileWidth = 200.0f; 
-    int gridRange = 3; 
+    float tileWidth = 200.0f;
+    int gridRange = 3;
 
     for (int x = -gridRange; x <= gridRange; x++) {
         for (int z = -gridRange; z <= gridRange; z++) {
-            
+
             if (x == 0 && z == 0) continue;
 
 
@@ -342,7 +342,12 @@ int main()
             glm::vec2 screenPos = WorldToScreen(headPos, ViewMatrix, ProjectionMatrix, (float)window.getWidth(), (float)window.getHeight());
             if (screenPos.x != -1.0f && screenPos.x > 0 && screenPos.x < window.getWidth() && screenPos.y > 0 && screenPos.y < window.getHeight()) {
                 ImGui::SetNextWindowPos(ImVec2(screenPos.x - 30, screenPos.y));
-                ImGui::Begin(std::string("HP" + std::to_string((long long)&z)).c_str(), NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize);
+                std::string hpId = std::string("HP") + std::to_string(reinterpret_cast<uintptr_t>(&z));
+                ImGui::Begin(hpId.c_str(), NULL,
+                    ImGuiWindowFlags_NoTitleBar |
+                    ImGuiWindowFlags_NoResize |
+                    ImGuiWindowFlags_NoBackground |
+                    ImGuiWindowFlags_AlwaysAutoResize);
                 if (z.hp == 2) ImGui::PushStyleColor(ImGuiCol_PlotHistogram, IM_COL32(0, 255, 0, 255));
                 else ImGui::PushStyleColor(ImGuiCol_PlotHistogram, IM_COL32(255, 0, 0, 255));
                 ImGui::ProgressBar((float)z.hp / 2.0f, ImVec2(60, 10), "");
@@ -628,14 +633,16 @@ void processMouseInput() {
 }
 
 void updateGameLogic() {
-    for (int i = 0; i < bullets.size(); i++) {
+    for (size_t i = 0; i < bullets.size(); ) {
         bullets[i].position += bullets[i].direction * (100.0f * deltaTime);
         bullets[i].lifeTime -= deltaTime;
+
+        bool destroyBullet = (bullets[i].lifeTime <= 0.0f);
 
         for (auto& z : zombies) {
             if (!z.isDead && glm::distance(bullets[i].position, z.pos) < 15.0f) {
                 z.hp--;
-                bullets[i].lifeTime = 0;
+                destroyBullet = true;
                 if (z.hp <= 0) {
                     z.isDead = true;
                     AddMessage("Zombie Killed!");
@@ -643,8 +650,14 @@ void updateGameLogic() {
                 break;
             }
         }
+
+        if (destroyBullet) {
+            bullets.erase(bullets.begin() + i);
+        }
+        else {
+            ++i;
+        }
     }
-    bullets.erase(std::remove_if(bullets.begin(), bullets.end(), [](const Bullet& b) { return b.lifeTime <= 0.0f; }), bullets.end());
 
     if (!hasKey && !keyPickedUp && glm::distance(playerWorldPos, keyPos) < 5.0f && eKeyPressed) {
         hasKey = true;
@@ -674,5 +687,6 @@ void updateGameLogic() {
         horsePos = glm::vec3(playerWorldPos.x, -4.0f, playerWorldPos.z);
         AddMessage("Horse Freed!");
     }
+
     eKeyPressed = false;
 }
