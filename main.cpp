@@ -36,7 +36,7 @@ glm::vec3 horseForward = glm::vec3(0, 0, 1);
 bool firstMouse = true;
 float lastX = 400.0f, lastY = 400.0f;
 
-Window window("Sura's Journey", 1600, 1600);
+Window window("Sura's Mission", 1600, 1600);
 
 Camera camera(glm::vec3(0.0f, 0.0f, 0.0f));
 
@@ -62,8 +62,8 @@ std::vector<Fireball> fireballs;
 
 glm::vec3 bossPos(650.0f, -4.0f, 0.0f);
 bool bossActivated = false;
-float bossFlyHeight = 100.0f;
-glm::vec3 iceBossPos(400.0f, -4.0f, 400.0f);
+float bossFlyHeight = 200.0f;
+glm::vec3 iceBossPos(500.0f, -4.0f, -450.0f);
 bool iceBossActivated = false;
 bool iceBossDead = false;
 
@@ -72,7 +72,7 @@ int iceBossMaxHP = 5;
 
 bool portalActive = false;
 glm::vec3 portalPos(0.0f);
-glm::vec3 iceIslandSpawn(400.0f, -4.0f, 400.0f);
+glm::vec3 iceIslandSpawn(400.0f, -4.0f, -500.0f);
 
 
 float bossMoveTimer = 0.0f;
@@ -185,6 +185,9 @@ enum Mission {
 };
 Mission currentMission = FIND_KEY;
 
+float distanceXZ(const glm::vec3& a, const glm::vec3& b) {
+    return glm::distance(glm::vec2(a.x, a.z), glm::vec2(b.x, b.z));
+}
 
 glm::vec2 WorldToScreen(glm::vec3 pos, glm::mat4 view, glm::mat4 proj, float width, float height) {
     glm::vec4 clipSpace = proj * view * glm::vec4(pos, 1.0f);
@@ -330,7 +333,8 @@ int main()
     MeshLoaderObj loader;
     Mesh sun = loader.loadObj("Resources/Models/sphere.obj");
     Mesh plane = loader.loadObj("Resources/Models/maptree.obj", orangeTextures);
-
+    Mesh treeModelIce = loader.loadObj("Resources/Models/tree.obj", iceTextures);
+    Mesh treeFire = loader.loadObj("Resources/Models/tree.obj", lavaTextures);
     Mesh lavamap = loader.loadObj("Resources/Models/lavamap.obj", lavaTextures);
     Mesh lava = loader.loadObj("Resources/Models/lava.obj", orangeTextures);
 
@@ -352,8 +356,9 @@ int main()
     Mesh bossModel = loader.loadObj("Resources/Models/boss.obj", lavaTextures);
     Mesh iceBossModel = loader.loadObj("Resources/Models/boss.obj", iceBossTextures);
     Mesh fireballModel = loader.loadObj("Resources/Models/fireball.obj", orangeTextures);
+    Mesh fireballModelIce = loader.loadObj("Resources/Models/fireball.obj", iceTextures);
     Mesh portalModel = loader.loadObj("Resources/Models/portal.obj", portalTextures);
-    Mesh iceIsland = loader.loadObj("Resources/Models/volcano.obj", iceTextures);
+    Mesh iceIsland = loader.loadObj("Resources/Models/lava.obj", iceTextures);
 
 
     treePositions.push_back(glm::vec3(-145.0f, -4.0f, -120.0f));
@@ -597,6 +602,20 @@ int main()
                 z.pos.y = -4.0f;
             }
         }
+        static float zombieDamageCooldown = 0.0f;
+        zombieDamageCooldown -= deltaTime;
+
+        for (auto& z : zombies) {
+            if (z.isDead) continue;
+
+            if (distanceXZ(z.pos, playerWorldPos) < 4.0f && zombieDamageCooldown <= 0.0f) {
+                playerHP -= 10;
+                damageFlashTimer = 0.3f;
+                AddMessage("Zombie hit!");
+                zombieDamageCooldown = 1.0f; 
+            }
+        }
+
 
         sunShader.use();
 
@@ -651,7 +670,11 @@ int main()
             glActiveTexture(GL_TEXTURE0);
             glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
 
-            DrawMesh(fireballModel, f.position, glm::vec3(1.8f), true);
+            if (f.type == FIRE)
+                DrawMesh(fireballModel, f.position, glm::vec3(1.0f), true);
+            else
+                DrawMesh(fireballModelIce, f.position, glm::vec3(1.0f), true);
+
         }
 
         if (iceBossActivated && !iceBossDead) {
@@ -674,7 +697,7 @@ int main()
         glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
 
         if (portalActive || iceBossActivated) {
-            DrawMesh(iceIsland, iceIslandSpawn, glm::vec3(0.1f), true);
+            DrawMesh(iceIsland, iceIslandSpawn, glm::vec3(0.4f), true);
         }
 
 
@@ -734,26 +757,15 @@ int main()
         for (const auto& pos : treePositions) DrawMesh(treeModel, pos, glm::vec3(6.0f), false);
 
         if (bossActivated && !bossDead) {
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texLava); 
-            glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
-
-            glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 1.0f, 1.0f, 1.0f);
-            glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 1); 
-
-            for (const auto& pos : fireBossTrees) DrawMesh(treeModel, pos, glm::vec3(7.0f), true);
+            for (const auto& pos : fireBossTrees)
+                DrawMesh(treeFire, pos, glm::vec3(7.0f), true);
         }
 
         if (iceBossActivated && !iceBossDead) {
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texIce); 
-            glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
-
-            glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 1.0f, 1.0f, 1.0f);
-            glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 1); 
-
-            for (const auto& pos : iceBossTrees) DrawMesh(treeModel, pos, glm::vec3(7.0f), true);
+            for (const auto& pos : iceBossTrees)
+                DrawMesh(treeModelIce, pos, glm::vec3(7.0f), true);
         }
+
 
         glUniform1i(typeLoc, 0);
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 1.0f, 1.0f, 1.0f);
@@ -805,7 +817,7 @@ int main()
                 glm::vec3(3.5f)
             );
 
-            gunModel = glm::rotate(gunModel, glm::radians(180.0f), glm::vec3(0, 1, 0));
+            gunModel = glm::rotate(gunModel, glm::radians(-5.0f), glm::vec3(1, 0, 0));
 
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texFlash);
@@ -1058,13 +1070,13 @@ void updateGameLogic() {
         }
     }
 
-    if (!iceBossActivated && !iceBossDead && glm::distance(playerWorldPos, iceBossPos) < 120.0f) {
+    if (!iceBossActivated &&  glm::distance(playerWorldPos, iceBossPos) < 120.0f) {
         iceBossActivated = true;
         AddMessage("The Ice Dragon awakens!");
     }
 
 
-    if (!bossActivated && glm::distance(playerWorldPos, bossPos) < 120.0f) {
+    if (!bossActivated && glm::distance(playerWorldPos, bossPos) < 200.0f) {
         bossActivated = true;
         AddMessage("The Fire Dragon awakens!");
     }
@@ -1088,8 +1100,9 @@ void updateGameLogic() {
         bossShootTimer += deltaTime;
         if (bossShootTimer >= 2.0f) {
             Fireball f;
-            f.position = bossPos;
-            f.direction = glm::normalize(playerWorldPos - bossPos);
+            f.position = bossPos + glm::vec3(0.0f, -20.0f, 0.0f);
+            glm::vec3 target = playerWorldPos + glm::vec3(0.0f, 3.0f, 0.0f);
+            f.direction = glm::normalize(target - f.position);
             f.lifeTime = 5.0f;
             f.type = FIRE;
             fireballs.push_back(f);
@@ -1102,8 +1115,9 @@ void updateGameLogic() {
         iceBossShootTimer += deltaTime;
         if (iceBossShootTimer >= 2.5f) {
             Fireball f;
-            f.position = iceBossPos;
-            f.direction = glm::normalize(playerWorldPos - iceBossPos);
+            f.position = iceBossPos + glm::vec3(0.0f, -20.0f, 0.0f);
+            glm::vec3 target = playerWorldPos + glm::vec3(0.0f, 3.0f, 0.0f);
+            f.direction = glm::normalize(target - f.position);
             f.lifeTime = 5.0f;
             f.type = ICE;
             fireballs.push_back(f);
@@ -1229,7 +1243,7 @@ void updateGameLogic() {
         fireballs[i].position += fireballs[i].direction * (40.0f * deltaTime);
         fireballs[i].lifeTime -= deltaTime;
 
-        if (glm::distance(fireballs[i].position, playerWorldPos) < 4.5f) {
+        if (distanceXZ(fireballs[i].position, playerWorldPos) < 6.0f) {
             if (fireballs[i].type == FIRE) {
                 playerHP -= 5;
                 AddMessage("Fireball hit!");
@@ -1240,15 +1254,18 @@ void updateGameLogic() {
                 AddMessage("Ice blast hit!");
                 damageFlashTimer = 0.3f;
             }
+
             fireballs[i].lifeTime = 0.0f;
+            break; 
         }
+
     }
     fireballs.erase(std::remove_if(fireballs.begin(), fireballs.end(), [](const Fireball& f) { return f.lifeTime <= 0.0f; }), fireballs.end());
 
     if (playerHP < 0) playerHP = 0;
 
 
-    if (portalActive && glm::distance(playerWorldPos, portalPos) < 8.0f) {
+    if (portalActive && glm::distance(playerWorldPos, portalPos) < 20.0f) {
         showInteraction = true;
         interactionText = "Press F to enter the portal";
 
