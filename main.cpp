@@ -24,6 +24,11 @@ GLuint loadCubemap(std::vector<std::string> faces);
 void processKeyboardInput();
 void processMouseInput();
 void updateGameLogic();
+std::vector<glm::vec3> fireBossTrees;
+std::vector<glm::vec3> iceBossTrees;
+bool isDay = false;
+float dayNightTimer = 0.0f;
+const float DAY_NIGHT_DURATION = 15.0f; 
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -44,10 +49,10 @@ enum FireballType {
 };
 
 struct Fireball {
-    glm::vec3 position;
-    glm::vec3 direction;
-    float lifeTime;
-    FireballType type;
+    glm::vec3 position{ 0.0f };
+    glm::vec3 direction{ 0.0f };
+    float lifeTime = 0.0f;      
+    FireballType type = FIRE;    
 };
 
 float bossHitRadius = 18.0f;     
@@ -268,12 +273,27 @@ int main()
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
-    std::vector<std::string> faces{
-        "Resources/Textures/night1.bmp", "Resources/Textures/night2.bmp",
-        "Resources/Textures/night3.bmp", "Resources/Textures/night4.bmp",
-        "Resources/Textures/night5.bmp", "Resources/Textures/night6.bmp"
+    std::vector<std::string> nightFaces{
+        "Resources/Textures/night1.bmp",
+        "Resources/Textures/night2.bmp",
+        "Resources/Textures/night3.bmp",
+        "Resources/Textures/night4.bmp",
+        "Resources/Textures/night5.bmp",
+        "Resources/Textures/night6.bmp"
     };
-    GLuint cubemapTexture = loadCubemap(faces);
+
+    std::vector<std::string> dayFaces{
+        "Resources/Textures/day1.bmp",
+        "Resources/Textures/day2.bmp",
+        "Resources/Textures/day3.bmp",
+        "Resources/Textures/day4.bmp",
+        "Resources/Textures/day5.bmp",
+        "Resources/Textures/day6.bmp"
+    };
+
+    GLuint nightCubemap = loadCubemap(nightFaces);
+    GLuint dayCubemap = loadCubemap(dayFaces);
+
 
     GLuint texWood = loadBMP("Resources/Textures/woodplanks.bmp");
     GLuint texWood2 = loadBMP("Resources/Textures/woodplanks.bmp");
@@ -352,7 +372,10 @@ int main()
     treePositions.push_back(glm::vec3(20.0f, -4.0f, -80.0f));
     treePositions.push_back(glm::vec3(30.0f, -4.0f, -90.0f));
 
-
+    fireBossTrees.push_back(bossPos + glm::vec3(25.0f, 0.0f, 10.0f));
+    fireBossTrees.push_back(bossPos + glm::vec3(-30.0f, 0.0f, -15.0f));
+    iceBossTrees.push_back(iceBossPos + glm::vec3(20.0f, 0.0f, 20.0f));
+    iceBossTrees.push_back(iceBossPos + glm::vec3(-25.0f, 0.0f, -10.0f));
     float tileWidth = 200.0f; 
     int gridRange = 3; 
 
@@ -382,6 +405,18 @@ int main()
         float currentFrame = (float)glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+        const float TWO_PI = 6.28318530718f;
+        float sunAngle = (dayNightTimer / DAY_NIGHT_DURATION) * TWO_PI;
+        lightPos.x = cos(sunAngle) * 1200.0f;
+        lightPos.y = sin(sunAngle) * 800.0f;
+        lightPos.z = -1000.0f;
+        dayNightTimer += deltaTime;
+
+
+        if (dayNightTimer >= DAY_NIGHT_DURATION) {
+            dayNightTimer = 0.0f;
+            isDay = !isDay;
+        }
 
         if (!messageLog.empty()) {
             messageLog.front().timer -= deltaTime;
@@ -400,7 +435,7 @@ int main()
 
         if (showInventory) {
             ImGui::SetNextWindowPos(ImVec2(100, 100), ImGuiCond_FirstUseEver);
-            ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2(300, 250), ImGuiCond_FirstUseEver); 
             ImGui::Begin("Inventory");
             ImGui::Text("Click to Hold Item:");
             ImGui::Separator();
@@ -410,6 +445,16 @@ int main()
             else { ImGui::TextDisabled("Gun (Not Found)"); }
             if (hasKey) { if (ImGui::Button("Key")) currentItem = 3; }
             else { ImGui::TextDisabled("Key (Not Found)"); }
+
+
+            ImGui::Separator();
+            ImGui::Text("World Settings:");
+            if (ImGui::Button(isDay ? "Switch to Night" : "Switch to Day")) {
+                isDay = !isDay;       
+                dayNightTimer = 0.0f; 
+            }
+   
+
             ImGui::End();
         }
 
@@ -443,7 +488,7 @@ int main()
         case FIND_KEY: missionText = "Mission: Find the key in the forest"; break;
         case OPEN_SAFE: missionText = "Mission: Open the safe in the house"; break;
         case FREE_HORSE: missionText = "Mission: Rescue the horse"; break;
-        case CROSS_LAVA: missionText = "Mission: Cross the lava with the horse"; break;
+        case CROSS_LAVA: missionText = "Mission: Cross the lava with the horse and fight the final bosses"; break;
         case FIGHT_BOSS: missionText = "Mission: Fight the Fire Dragon"; break;
         }
 
@@ -521,10 +566,24 @@ int main()
         glm::vec3 currentCamPos = camera.getCameraPosition();
 
         if (!freeCam) {
-            float playerHeight = isRiding ? 25.0f : 22.0f;
-            float terrainY = getTerrainHeight(currentCamPos.x, currentCamPos.z);
-            camera.setCameraPosition(glm::vec3(currentCamPos.x, terrainY + playerHeight, currentCamPos.z));
-            playerWorldPos = glm::vec3(currentCamPos.x, terrainY, currentCamPos.z);
+            if (isRiding) {
+                float terrainY = getTerrainHeight(horsePos.x, horsePos.z);
+
+                playerWorldPos = glm::vec3(horsePos.x, terrainY, horsePos.z);
+
+                camera.setCameraPosition(
+                    playerWorldPos + glm::vec3(0.0f, 25.0f, 0.0f)
+                );
+            }
+            else {
+                float terrainY = getTerrainHeight(currentCamPos.x, currentCamPos.z);
+                camera.setCameraPosition(glm::vec3(
+                    currentCamPos.x,
+                    terrainY + 22.0f,
+                    currentCamPos.z
+                ));
+                playerWorldPos = glm::vec3(currentCamPos.x, terrainY, currentCamPos.z);
+            }
         }
 
         for (auto& z : zombies) {
@@ -551,7 +610,12 @@ int main()
             bulletModel.draw(sunShader);
         }
 
-
+        if (isDay) {
+            lightColor = glm::vec3(1.0f, 0.95f, 0.85f); 
+        }
+        else {
+            lightColor = glm::vec3(0.2f, 0.3f, 0.6f);   
+        }
         shader.use();
         GLuint MVP_ID = glGetUniformLocation(shader.getId(), "MVP");
         GLuint MODEL_ID = glGetUniformLocation(shader.getId(), "model");
@@ -644,7 +708,7 @@ int main()
             DrawMesh(keyModel, keyPos, glm::vec3(1.5f), true);
         }
 
-        glm::vec3 drawHorsePos = isRiding ? glm::vec3(playerWorldPos.x, -4.0f, playerWorldPos.z) : horsePos;
+        glm::vec3 drawHorsePos = horsePos;
         glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texOrange); glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
         DrawMesh(horse, drawHorsePos, glm::vec3(0.5f), true);
 
@@ -662,7 +726,16 @@ int main()
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 0.0f, 0.6f, 0.0f);
         glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 0);
         for (const auto& pos : treePositions) DrawMesh(treeModel, pos, glm::vec3(6.0f), false);
-
+        if (bossActivated && !bossDead) {
+            for (const auto& pos : fireBossTrees) {
+                DrawMesh(treeModel, pos, glm::vec3(7.0f), false);
+            }
+        }
+        if (iceBossActivated && !iceBossDead) {
+            for (const auto& pos : iceBossTrees) {
+                DrawMesh(treeModel, pos, glm::vec3(7.0f), false);
+            }
+        }
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 1.0f, 1.0f, 1.0f);
         glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 1);
         for (const auto& z : zombies) {
@@ -740,7 +813,8 @@ int main()
         glUniformMatrix4fv(glGetUniformLocation(skyboxShader.getId(), "view"), 1, GL_FALSE, &view[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(skyboxShader.getId(), "projection"), 1, GL_FALSE, &ProjectionMatrix[0][0]);
         glBindVertexArray(skyboxVAO);
-        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+        glActiveTexture(GL_TEXTURE0); 
+        glBindTexture(GL_TEXTURE_CUBE_MAP, isDay ? dayCubemap : nightCubemap);
         glUniform1i(glGetUniformLocation(skyboxShader.getId(), "skybox"), 0);
         glDrawArrays(GL_TRIANGLES, 0, 36);
         glBindVertexArray(0);
@@ -782,23 +856,6 @@ int main()
 void processKeyboardInput() {
     float cameraSpeed = (isRiding ? 80.0f : 30.0f) * deltaTime;
     if (freeCam) cameraSpeed = 100.0f * deltaTime;
-    if (isRiding) {
-        float horseSpeed = 80.0f * deltaTime;
-
-        glm::vec3 forward = camera.getCameraViewDirection();
-        forward.y = 0.0f;
-        forward = glm::normalize(forward);
-
-        if (window.isPressed(GLFW_KEY_W))
-            horsePos += forward * horseSpeed;
-
-        if (window.isPressed(GLFW_KEY_S))
-            horsePos -= forward * horseSpeed;
-
-        playerWorldPos = horsePos;
-
-        return; 
-    }
 
     glm::vec3 nextPos = playerWorldPos;
     bool moving = false;
@@ -821,6 +878,7 @@ void processKeyboardInput() {
         moving = true;
     }
 
+
     if (!freeCam && !isInsideHouse) {
         if (glm::distance(nextPos, housePos) < 25.0f ||
             glm::distance(nextPos, hospitalPos) < 15.0f ||
@@ -835,6 +893,7 @@ void processKeyboardInput() {
         }
     }
 
+
     if (moving) {
         if (window.isPressed(GLFW_KEY_W)) camera.keyboardMoveFront(cameraSpeed);
         if (window.isPressed(GLFW_KEY_S)) camera.keyboardMoveBack(cameraSpeed);
@@ -847,6 +906,7 @@ void processKeyboardInput() {
         if (window.isPressed(GLFW_KEY_G)) camera.keyboardMoveDown(cameraSpeed);
     }
 
+
     static bool iLast = false; bool iCurr = window.isPressed(GLFW_KEY_I);
     if (iCurr && !iLast) {
         showInventory = !showInventory;
@@ -855,12 +915,21 @@ void processKeyboardInput() {
     }
     iLast = iCurr;
 
+
     static bool fiveLast = false; bool fiveCurr = window.isPressed(GLFW_KEY_5);
-    if (fiveCurr && !fiveLast) { freeCam = !freeCam; if (!freeCam) { float h = isRiding ? 22.0f : 20.0f; camera.setCameraPosition(glm::vec3(playerWorldPos.x, h, playerWorldPos.z)); } }
+    if (fiveCurr && !fiveLast) {
+        freeCam = !freeCam;
+        if (!freeCam) {
+            float h = isRiding ? 22.0f : 20.0f;
+            camera.setCameraPosition(glm::vec3(playerWorldPos.x, h, playerWorldPos.z));
+        }
+    }
     fiveLast = fiveCurr;
+
 
     static bool fLast = false; bool fCurr = window.isPressed(GLFW_KEY_F);
     if (fCurr && !fLast) {
+        fKeyPressed = true; 
         if (glm::distance(playerWorldPos, housePos) < 30.0f || glm::distance(playerWorldPos, hospitalPos) < 20.0f) {
             isInsideHouse = !isInsideHouse;
             AddMessage(isInsideHouse ? "Entered Building" : "Exited Building");
@@ -868,10 +937,15 @@ void processKeyboardInput() {
     }
     fLast = fCurr;
 
+
     static bool eLast = false; bool eCurr = window.isPressed(GLFW_KEY_E);
-    if (eCurr && !eLast) eKeyPressed = true;
+    if (eCurr && !eLast) {
+        eKeyPressed = true; 
+    }
     eLast = eCurr;
-}
+
+} 
+
 
 void processMouseInput() {
     if (showInventory) return;
@@ -889,23 +963,62 @@ void processMouseInput() {
     }
     mouseLast = mouseCurr;
 
-    double xpos, ypos; glfwGetCursorPos(window.getWindow(), &xpos, &ypos);
-    if (firstMouse) { lastX = (float)xpos; lastY = (float)ypos; firstMouse = false; }
+    double xpos, ypos;
+    glfwGetCursorPos(window.getWindow(), &xpos, &ypos);
+
+    if (firstMouse) {
+        lastX = (float)xpos;
+        lastY = (float)ypos;
+        firstMouse = false;
+    }
 
     float xoffset = lastX - (float)xpos;
     float yoffset = lastY - (float)ypos;
-    lastX = (float)xpos; lastY = (float)ypos;
+    lastX = (float)xpos;
+    lastY = (float)ypos;
 
     camera.rotateOy(xoffset * 0.05f);
     camera.rotateOx(yoffset * 0.05f);
 }
 
+
 void updateGameLogic() {
+
+    if (isRiding) {
+        float horseSpeed = 80.0f * deltaTime;
+        glm::vec3 forward = camera.getCameraViewDirection();
+        forward.y = 0.0f;
+        forward = glm::normalize(forward);
+
+        if (window.isPressed(GLFW_KEY_W)) horsePos += forward * horseSpeed;
+        if (window.isPressed(GLFW_KEY_S)) horsePos -= forward * horseSpeed;
+
+        playerWorldPos = horsePos;
+    }
+
+ 
     if (playerHP <= 0 && !playerDead) {
         playerHP = 0;
         playerDead = true;
         AddMessage("YOU DIED");
     }
+
+    static bool mountLast = false;
+    bool mountNow = eKeyPressed;
+
+    if (mountNow && !mountLast) {
+        if (!isRiding && glm::distance(playerWorldPos, horsePos) < 8.0f) { 
+            isRiding = true;
+            AddMessage("Horse Mounted!");
+        }
+        else if (isRiding) {
+            isRiding = false;
+            horsePos = glm::vec3(playerWorldPos.x, -4.0f, playerWorldPos.z);
+            AddMessage("Horse Freed!");
+        }
+    }
+    mountLast = mountNow;
+
     if (playerDead) {
         showInteraction = false;
         return;
@@ -913,29 +1026,19 @@ void updateGameLogic() {
 
     if (iceBossActivated && !iceBossDead) {
         iceBossPos.y = -4.0f + bossFlyHeight;
-
         iceBossMoveTimer += deltaTime;
 
         if (iceBossMoveLeft) {
             iceBossPos.x -= 10.0f * deltaTime;
-            if (iceBossMoveTimer > 3.0f) {
-                iceBossMoveLeft = false;
-                iceBossMoveTimer = 0.0f;
-            }
+            if (iceBossMoveTimer > 3.0f) { iceBossMoveLeft = false; iceBossMoveTimer = 0.0f; }
         }
         else {
             iceBossPos.x += 10.0f * deltaTime;
-            if (iceBossMoveTimer > 6.0f) {
-                iceBossMoveLeft = true;
-                iceBossMoveTimer = 0.0f;
-            }
+            if (iceBossMoveTimer > 6.0f) { iceBossMoveLeft = true; iceBossMoveTimer = 0.0f; }
         }
-
     }
 
-    if (!iceBossActivated && !iceBossDead &&
-        glm::distance(playerWorldPos, iceBossPos) < 120.0f) {
-
+    if (!iceBossActivated && !iceBossDead && glm::distance(playerWorldPos, iceBossPos) < 120.0f) {
         iceBossActivated = true;
         AddMessage("The Ice Dragon awakens!");
     }
@@ -945,54 +1048,44 @@ void updateGameLogic() {
         bossActivated = true;
         AddMessage("The Fire Dragon awakens!");
     }
+
     if (bossActivated && !bossDead) {
-
         bossPos.y = -4.0f + bossFlyHeight;
-
         bossMoveTimer += deltaTime;
 
         if (bossMoveLeft) {
             bossPos.x -= 10.0f * deltaTime;
-            if (bossMoveTimer > 3.0f) {
-                bossMoveLeft = false;
-                bossMoveTimer = 0.0f;
-            }
+            if (bossMoveTimer > 3.0f) { bossMoveLeft = false; bossMoveTimer = 0.0f; }
         }
         else {
             bossPos.x += 10.0f * deltaTime;
-            if (bossMoveTimer > 6.0f) {
-                bossMoveLeft = true;
-                bossMoveTimer = 0.0f;
-            }
+            if (bossMoveTimer > 6.0f) { bossMoveLeft = true; bossMoveTimer = 0.0f; }
         }
     }
 
+
     if (bossActivated && !bossDead) {
         bossShootTimer += deltaTime;
-
         if (bossShootTimer >= 2.0f) {
             Fireball f;
             f.position = bossPos;
             f.direction = glm::normalize(playerWorldPos - bossPos);
             f.lifeTime = 5.0f;
             f.type = FIRE;
-
             fireballs.push_back(f);
             bossShootTimer = 0.0f;
         }
     }
-    static float iceBossShootTimer = 0.0f;
 
+    static float iceBossShootTimer = 0.0f;
     if (iceBossActivated && !iceBossDead) {
         iceBossShootTimer += deltaTime;
-
         if (iceBossShootTimer >= 2.5f) {
             Fireball f;
             f.position = iceBossPos;
             f.direction = glm::normalize(playerWorldPos - iceBossPos);
             f.lifeTime = 5.0f;
             f.type = ICE;
-
             fireballs.push_back(f);
             iceBossShootTimer = 0.0f;
         }
@@ -1001,125 +1094,87 @@ void updateGameLogic() {
 
     static float zombieAttackCooldown = 0.0f;
     zombieAttackCooldown -= deltaTime;
-    if (keyPickedUp && currentMission == FIND_KEY)
-        currentMission = OPEN_SAFE;
-
-    if (hasGun && currentMission == OPEN_SAFE)
-        currentMission = FREE_HORSE;
-
-    if (isRiding && currentMission == FREE_HORSE)
-        currentMission = CROSS_LAVA;
+    if (keyPickedUp && currentMission == FIND_KEY) currentMission = OPEN_SAFE;
+    if (hasGun && currentMission == OPEN_SAFE) currentMission = FREE_HORSE;
+    if (isRiding && currentMission == FREE_HORSE) currentMission = CROSS_LAVA;
 
     showInteraction = false;
     interactionText = "";
-    if (damageFlashTimer > 0.0f)
-        damageFlashTimer -= deltaTime;
+    if (damageFlashTimer > 0.0f) damageFlashTimer -= deltaTime;
+
+
     for (size_t i = 0; i < bullets.size(); i++) {
         bullets[i].position += bullets[i].direction * (100.0f * deltaTime);
         bullets[i].lifeTime -= deltaTime;
 
         for (auto& z : zombies) {
             if (z.isDead) continue;
-
-            float hitDist = glm::distance(bullets[i].position, z.pos);
-
-            if (hitDist < 5.0f) {
+            if (glm::distance(bullets[i].position, z.pos) < 5.0f) {
                 z.hp -= 1;
                 AddMessage("Zombie hit!");
-
                 if (z.hp <= 0) {
                     z.isDead = true;
                     AddMessage("Zombie killed!");
                 }
-
                 bullets[i].lifeTime = 0.0f;
                 break;
             }
         }
+
+ 
         if (bossActivated && !bossDead) {
-            float bossHitDist = glm::distance(bullets[i].position, bossPos);
-            if (iceBossActivated && !iceBossDead) {
-                float hitDist = glm::distance(bullets[i].position, iceBossPos);
-
-                if (hitDist < iceBossHitRadius) {
-                    iceBossHP -= 1;
-                    bullets[i].lifeTime = 0.0f;
-                    AddMessage("Ice Boss hit!");
-
-                    if (iceBossHP <= 0) {
-                        iceBossDead = true;
-                        AddMessage("Ice Dragon defeated!");
-                    }
-                }
-            }
-
-
-            if (bossHitDist < bossHitRadius) {
+            if (glm::distance(bullets[i].position, bossPos) < bossHitRadius) {
                 bossHP -= 1;
                 bullets[i].lifeTime = 0.0f;
                 AddMessage("Boss hit!");
-
                 if (bossHP <= 0) {
                     bossDead = true;
                     portalActive = true;
-
                     portalPos = bossPos;
                     portalPos.y = -4.0f;
-
                     AddMessage("A portal opens...");
                 }
-
             }
         }
 
+        if (iceBossActivated && !iceBossDead) {
+            if (glm::distance(bullets[i].position, iceBossPos) < iceBossHitRadius) {
+                iceBossHP -= 1;
+                bullets[i].lifeTime = 0.0f;
+                AddMessage("Ice Boss hit!");
+                if (iceBossHP <= 0) {
+                    iceBossDead = true;
+                    AddMessage("Ice Dragon defeated!");
+                }
+            }
+        }
     }
-
-
     bullets.erase(std::remove_if(bullets.begin(), bullets.end(), [](const Bullet& b) { return b.lifeTime <= 0.0f; }), bullets.end());
+
 
     if (!keyPickedUp && glm::distance(playerWorldPos, keyPos) < 5.0f) {
         showInteraction = true;
         interactionText = "Press E to pick up the key";
     }
+
     if (glm::distance(playerWorldPos, safePos) < 15.0f) {
         showInteraction = true;
-
-        if (!hasKey)
-            interactionText = "The safe is locked";
-        else if (currentItem != 3)
-            interactionText = "Hold the key to open the safe";
-        else
-            interactionText = "Press E to open the safe";
+        if (!hasKey) interactionText = "The safe is locked";
+        else if (currentItem != 3) interactionText = "Hold the key to open the safe";
+        else interactionText = "Press E to open the safe";
     }
+
     if (glm::distance(playerWorldPos, horsePos) < 6.0f) {
         showInteraction = true;
-        interactionText = isRiding
-            ? "Press E to hop off the horse"
-            : "Press E to ride the horse";
+        interactionText = isRiding ? "Press E to hop off" : "Press E to ride";
     }
+
 
     if (!hasKey && !keyPickedUp && glm::distance(playerWorldPos, keyPos) < 5.0f && eKeyPressed) {
         hasKey = true;
         keyPickedUp = true;
         AddMessage("Key Obtained!");
     }
-    static float lavaTimer = 0.0f;
-
-    if (isOutsideMap(playerWorldPos)) {
-        if (!isRiding) {
-            lavaTimer += deltaTime;
-
-            if (lavaTimer > 0.5f) {
-                playerHP -= 15;
-                AddMessage("You are burning in lava!");
-                lavaTimer = 0.0f;
-            }
-        }
-    }
-    else {
-        lavaTimer = 0.0f;
-    }
-
 
     if (hasKey && !hasGun && glm::distance(playerWorldPos, safePos) < 15.0f && eKeyPressed) {
         if (currentItem == 3) {
@@ -1133,12 +1188,28 @@ void updateGameLogic() {
     else if (!hasKey && !hasGun && glm::distance(playerWorldPos, safePos) < 15.0f && eKeyPressed) {
         AddMessage("Safe Locked!");
     }
+
+ 
+    static float lavaTimer = 0.0f;
+    if (isOutsideMap(playerWorldPos)) {
+        if (!isRiding) {
+            lavaTimer += deltaTime;
+            if (lavaTimer > 0.5f) {
+                playerHP -= 15;
+                AddMessage("You are burning in lava!");
+                lavaTimer = 0.0f;
+            }
+        }
+    }
+    else {
+        lavaTimer = 0.0f;
+    }
+
     for (size_t i = 0; i < fireballs.size(); i++) {
         fireballs[i].position += fireballs[i].direction * (40.0f * deltaTime);
         fireballs[i].lifeTime -= deltaTime;
 
         if (glm::distance(fireballs[i].position, playerWorldPos) < 4.5f) {
-
             if (fireballs[i].type == FIRE) {
                 playerHP -= 5;
                 AddMessage("Fireball hit!");
@@ -1149,48 +1220,28 @@ void updateGameLogic() {
                 AddMessage("Ice blast hit!");
                 damageFlashTimer = 0.3f;
             }
-
             fireballs[i].lifeTime = 0.0f;
         }
-
     }
+    fireballs.erase(std::remove_if(fireballs.begin(), fireballs.end(), [](const Fireball& f) { return f.lifeTime <= 0.0f; }), fireballs.end());
 
-    fireballs.erase(
-        std::remove_if(fireballs.begin(), fireballs.end(),
-            [](const Fireball& f) { return f.lifeTime <= 0.0f; }),
-        fireballs.end()
-    );
-
-
-    if (!isRiding && glm::distance(playerWorldPos, horsePos) < 6.0f && eKeyPressed) {
-        isRiding = true;
-        AddMessage("Horse Mounted!");
-    }
-    else if (isRiding && eKeyPressed) {
-        isRiding = false;
-        horsePos = glm::vec3(playerWorldPos.x, -4.0f, playerWorldPos.z);
-        AddMessage("Horse Freed!");
-    }
     if (playerHP < 0) playerHP = 0;
+
+
     if (portalActive && glm::distance(playerWorldPos, portalPos) < 8.0f) {
         showInteraction = true;
-        interactionText = "Press E to enter the portal";
+        interactionText = "Press F to enter the portal";
 
-        if (eKeyPressed) {
+        if (fKeyPressed) {
             playerWorldPos = iceIslandSpawn;
-            camera.setCameraPosition(glm::vec3(
-                iceIslandSpawn.x,
-                iceIslandSpawn.y + 22.0f,
-                iceIslandSpawn.z
-            ));
-
+            camera.setCameraPosition(glm::vec3(iceIslandSpawn.x, iceIslandSpawn.y + 22.0f, iceIslandSpawn.z));
             horsePos = iceIslandSpawn;
-
             isRiding = true;
             AddMessage("You entered the Frozen Island with your horse");
         }
-
-
-        eKeyPressed = false;
     }
+
+  
+    eKeyPressed = false;
+    fKeyPressed = false;
 }
