@@ -886,7 +886,9 @@ int main()
 }
 
 void processKeyboardInput() {
+    float slowFactor = 1.0f;
     float cameraSpeed = (isRiding ? 80.0f : 30.0f) * deltaTime;
+    cameraSpeed *= slowFactor;
     if (freeCam) cameraSpeed = 100.0f * deltaTime;
 
     glm::vec3 nextPos = playerWorldPos;
@@ -919,10 +921,13 @@ void processKeyboardInput() {
         }
 
         for (const auto& tPos : treePositions) {
-            if (glm::distance(nextPos, tPos) < 5.0f) {
-                moving = false;
+            float d = glm::distance(nextPos, tPos);
+
+            if (d < 8.0f && d > 4.0f) {
+                slowFactor = 0.35f;   
             }
         }
+
     }
 
 
