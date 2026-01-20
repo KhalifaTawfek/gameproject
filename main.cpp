@@ -55,14 +55,14 @@ struct Fireball {
     FireballType type = FIRE;    
 };
 
-float bossHitRadius = 18.0f;     
-float iceBossHitRadius = 18.0f; 
+float bossHitRadius = 30.0f;     
+float iceBossHitRadius = 30.0f; 
 
 std::vector<Fireball> fireballs;
 
 glm::vec3 bossPos(650.0f, -4.0f, 0.0f);
 bool bossActivated = false;
-float bossFlyHeight = 30.0f;
+float bossFlyHeight = 60.0f;
 glm::vec3 iceBossPos(400.0f, -4.0f, 400.0f);
 bool iceBossActivated = false;
 bool iceBossDead = false;
@@ -599,6 +599,7 @@ int main()
         }
 
         sunShader.use();
+
 
         glUniformMatrix4fv(glGetUniformLocation(sunShader.getId(), "MVP"), 1, GL_FALSE, &((ProjectionMatrix * ViewMatrix * glm::translate(glm::mat4(1.0f), lightPos))[0][0]));
         sun.draw(sunShader);
