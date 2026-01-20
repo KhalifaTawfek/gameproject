@@ -288,6 +288,23 @@ int main()
         processMouseInput();
         updateGameLogic();
 
+        static bool kPressedLastFrame = false;
+        bool kPressedNow = window.isPressed(GLFW_KEY_K);
+        static bool zombieSpawned = false;
+
+        if (kPressedNow && !kPressedLastFrame && !zombieSpawned) {
+        int type = rand() % 3 + 1;
+        glm::vec3 spawnPos =
+             playerWorldPos +
+             glm::normalize(camera.getCameraViewDirection()) * 25.0f;
+        spawnPos.y = -4.0f;
+        zombies.push_back({ spawnPos, type });
+        zombieSpawned = true;
+}
+
+
+        kPressedLastFrame = kPressedNow;
+
         glm::mat4 ProjectionMatrix = glm::perspective(90.0f, (float)window.getWidth() / (float)window.getHeight(), 0.1f, 10000.0f);
         glm::mat4 ViewMatrix = glm::lookAt(camera.getCameraPosition(), camera.getCameraPosition() + camera.getCameraViewDirection(), camera.getCameraUp());
 
