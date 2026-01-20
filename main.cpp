@@ -816,8 +816,14 @@ int main()
                 glm::vec3(0.45f, -0.45f, 1.3f),
                 glm::vec3(3.5f)
             );
+            glm::mat4 fix = glm::mat4(1.0f);
 
-            gunModel = glm::rotate(gunModel, glm::radians(-5.0f), glm::vec3(1, 0, 0));
+            fix[0] = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f); 
+            fix[1] = glm::vec4(0.0f, 0.0f, -1.0f, 0.0f); 
+            fix[2] = glm::vec4(-1.0f, 0.0f, 0.0f, 0.0f); 
+
+            gunModel *= fix;
+
 
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texFlash);
@@ -888,7 +894,6 @@ int main()
 void processKeyboardInput() {
     float slowFactor = 1.0f;
     float cameraSpeed = (isRiding ? 80.0f : 30.0f) * deltaTime;
-    cameraSpeed *= slowFactor;
     if (freeCam) cameraSpeed = 100.0f * deltaTime;
 
     glm::vec3 nextPos = playerWorldPos;
@@ -913,22 +918,26 @@ void processKeyboardInput() {
     }
 
 
-    if (!freeCam && !isInsideHouse) {
-        if (glm::distance(nextPos, housePos) < 25.0f ||
-            glm::distance(nextPos, hospitalPos) < 15.0f ||
-            glm::distance(nextPos, stablePos) < 10.0f) {
-            moving = false;
+    if (!freeCam) {
+
+        if (!isInsideHouse) {
+            if (glm::distance(nextPos, housePos) < 25.0f ||
+                glm::distance(nextPos, hospitalPos) < 15.0f ||
+                glm::distance(nextPos, stablePos) < 10.0f) {
+                moving = false;
+            }
         }
 
         for (const auto& tPos : treePositions) {
             float d = glm::distance(nextPos, tPos);
-
             if (d < 8.0f && d > 4.0f) {
-                slowFactor = 0.35f;   
+                slowFactor = 0.35f;
             }
         }
 
+        cameraSpeed *= slowFactor;
     }
+
 
 
     if (moving) {
@@ -1108,7 +1117,7 @@ void updateGameLogic() {
             f.position = bossPos + glm::vec3(0.0f, -20.0f, 0.0f);
             glm::vec3 target = playerWorldPos + glm::vec3(0.0f, 3.0f, 0.0f);
             f.direction = glm::normalize(target - f.position);
-            f.lifeTime = 5.0f;
+            f.lifeTime = 10.0f;
             f.type = FIRE;
             fireballs.push_back(f);
             bossShootTimer = 0.0f;
@@ -1123,7 +1132,7 @@ void updateGameLogic() {
             f.position = iceBossPos + glm::vec3(0.0f, -20.0f, 0.0f);
             glm::vec3 target = playerWorldPos + glm::vec3(0.0f, 3.0f, 0.0f);
             f.direction = glm::normalize(target - f.position);
-            f.lifeTime = 5.0f;
+            f.lifeTime = 12.0f;
             f.type = ICE;
             fireballs.push_back(f);
             iceBossShootTimer = 0.0f;
