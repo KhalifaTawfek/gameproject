@@ -27,7 +27,7 @@ void updateGameLogic();
 
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
-
+glm::vec3 horseForward = glm::vec3(0, 0, 1);
 bool firstMouse = true;
 float lastX = 400.0f, lastY = 400.0f;
 
@@ -38,11 +38,20 @@ Camera camera(glm::vec3(0.0f, 0.0f, 0.0f));
 glm::vec3 lightColor(0.4f, 0.4f, 0.7f);
 glm::vec3 lightPos(-180.0f, 100.0f, -200.0f);
 
+enum FireballType {
+    FIRE,
+    ICE
+};
+
 struct Fireball {
     glm::vec3 position;
     glm::vec3 direction;
     float lifeTime;
+    FireballType type;
 };
+
+float bossHitRadius = 18.0f;     
+float iceBossHitRadius = 18.0f; 
 
 std::vector<Fireball> fireballs;
 
@@ -131,6 +140,7 @@ std::vector<Zombie> zombies;
 std::string interactionText = "";
 bool showInteraction = false;
 float interactionFlashTimer = 0.0f;
+bool playerDead = false;
 
 
 float damageFlashTimer = 0.0f;
@@ -420,6 +430,11 @@ int main()
             ImGui::ProgressBar(bossHpRatio, ImVec2(180, 20), "");
             ImGui::PopStyleColor();
         }
+        if (playerDead) {
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(1, 0, 0, 1), "YOU DIED");
+        }
+
 
 
 
@@ -560,18 +575,26 @@ int main()
             m.draw(shader);
             };
         for (const auto& f : fireballs) {
+
+            if (f.type == FIRE) {
+                glBindTexture(GL_TEXTURE_2D, texOrange);
+            }
+            else {
+                glBindTexture(GL_TEXTURE_2D, texIce); 
+            }
+
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, texOrange);
             glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
 
-            DrawMesh(fireballModel, f.position, glm::vec3(1.5f), true);
+            DrawMesh(fireballModel, f.position, glm::vec3(1.8f), true);
         }
+
         if (iceBossActivated && !iceBossDead) {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, texIce);
             glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
 
-            DrawMesh(iceBossModel, iceBossPos, glm::vec3(3.0f), true);
+            DrawMesh(iceBossModel, iceBossPos, glm::vec3(9.0f), true);
         }
 
         if (portalActive) {
@@ -579,13 +602,16 @@ int main()
             glBindTexture(GL_TEXTURE_2D, texPortal);
             glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
 
-            DrawMesh(portalModel, portalPos, glm::vec3(6.0f), true);
+            DrawMesh(portalModel, portalPos, glm::vec3(18.0f), true);
         }
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texIce);
         glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
 
-        DrawMesh(iceIsland, glm::vec3(400.0f, -4.0f, 400.0f), glm::vec3(0.1f), true);
+        if (portalActive || iceBossActivated) {
+            DrawMesh(iceIsland, iceIslandSpawn, glm::vec3(0.1f), true);
+        }
+
 
 
 
@@ -629,7 +655,7 @@ int main()
             glBindTexture(GL_TEXTURE_2D, texLava);
             glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
 
-            DrawMesh(bossModel, bossPos, glm::vec3(3.0f), true);
+            DrawMesh(bossModel, bossPos, glm::vec3(9.0f), true);
         }
 
 
@@ -756,6 +782,23 @@ int main()
 void processKeyboardInput() {
     float cameraSpeed = (isRiding ? 80.0f : 30.0f) * deltaTime;
     if (freeCam) cameraSpeed = 100.0f * deltaTime;
+    if (isRiding) {
+        float horseSpeed = 80.0f * deltaTime;
+
+        glm::vec3 forward = camera.getCameraViewDirection();
+        forward.y = 0.0f;
+        forward = glm::normalize(forward);
+
+        if (window.isPressed(GLFW_KEY_W))
+            horsePos += forward * horseSpeed;
+
+        if (window.isPressed(GLFW_KEY_S))
+            horsePos -= forward * horseSpeed;
+
+        playerWorldPos = horsePos;
+
+        return; 
+    }
 
     glm::vec3 nextPos = playerWorldPos;
     bool moving = false;
@@ -858,6 +901,16 @@ void processMouseInput() {
 }
 
 void updateGameLogic() {
+    if (playerHP <= 0 && !playerDead) {
+        playerHP = 0;
+        playerDead = true;
+        AddMessage("YOU DIED");
+    }
+    if (playerDead) {
+        showInteraction = false;
+        return;
+    }
+
     if (iceBossActivated && !iceBossDead) {
         iceBossPos.y = -4.0f + bossFlyHeight;
 
@@ -922,11 +975,29 @@ void updateGameLogic() {
             f.position = bossPos;
             f.direction = glm::normalize(playerWorldPos - bossPos);
             f.lifeTime = 5.0f;
+            f.type = FIRE;
 
             fireballs.push_back(f);
             bossShootTimer = 0.0f;
         }
     }
+    static float iceBossShootTimer = 0.0f;
+
+    if (iceBossActivated && !iceBossDead) {
+        iceBossShootTimer += deltaTime;
+
+        if (iceBossShootTimer >= 2.5f) {
+            Fireball f;
+            f.position = iceBossPos;
+            f.direction = glm::normalize(playerWorldPos - iceBossPos);
+            f.lifeTime = 5.0f;
+            f.type = ICE;
+
+            fireballs.push_back(f);
+            iceBossShootTimer = 0.0f;
+        }
+    }
+
 
     static float zombieAttackCooldown = 0.0f;
     zombieAttackCooldown -= deltaTime;
@@ -952,7 +1023,7 @@ void updateGameLogic() {
 
             float hitDist = glm::distance(bullets[i].position, z.pos);
 
-            if (hitDist < 5.0f) {  
+            if (hitDist < 5.0f) {
                 z.hp -= 1;
                 AddMessage("Zombie hit!");
 
@@ -961,16 +1032,16 @@ void updateGameLogic() {
                     AddMessage("Zombie killed!");
                 }
 
-                bullets[i].lifeTime = 0.0f; 
+                bullets[i].lifeTime = 0.0f;
                 break;
             }
         }
-        if (bossActivated && !iceBossDead) {
+        if (bossActivated && !bossDead) {
             float bossHitDist = glm::distance(bullets[i].position, bossPos);
             if (iceBossActivated && !iceBossDead) {
                 float hitDist = glm::distance(bullets[i].position, iceBossPos);
 
-                if (hitDist < 6.0f) {
+                if (hitDist < iceBossHitRadius) {
                     iceBossHP -= 1;
                     bullets[i].lifeTime = 0.0f;
                     AddMessage("Ice Boss hit!");
@@ -983,17 +1054,17 @@ void updateGameLogic() {
             }
 
 
-            if (bossHitDist < 6.0f) {
+            if (bossHitDist < bossHitRadius) {
                 bossHP -= 1;
                 bullets[i].lifeTime = 0.0f;
                 AddMessage("Boss hit!");
-                
+
                 if (bossHP <= 0) {
                     bossDead = true;
                     portalActive = true;
 
                     portalPos = bossPos;
-                    portalPos.y = -4.0f; 
+                    portalPos.y = -4.0f;
 
                     AddMessage("A portal opens...");
                 }
@@ -1005,7 +1076,7 @@ void updateGameLogic() {
 
 
     bullets.erase(std::remove_if(bullets.begin(), bullets.end(), [](const Bullet& b) { return b.lifeTime <= 0.0f; }), bullets.end());
-    
+
     if (!keyPickedUp && glm::distance(playerWorldPos, keyPos) < 5.0f) {
         showInteraction = true;
         interactionText = "Press E to pick up the key";
@@ -1038,7 +1109,7 @@ void updateGameLogic() {
         if (!isRiding) {
             lavaTimer += deltaTime;
 
-            if (lavaTimer > 0.5f) {   
+            if (lavaTimer > 0.5f) {
                 playerHP -= 15;
                 AddMessage("You are burning in lava!");
                 lavaTimer = 0.0f;
@@ -1046,7 +1117,7 @@ void updateGameLogic() {
         }
     }
     else {
-        lavaTimer = 0.0f; 
+        lavaTimer = 0.0f;
     }
 
 
@@ -1066,12 +1137,22 @@ void updateGameLogic() {
         fireballs[i].position += fireballs[i].direction * (40.0f * deltaTime);
         fireballs[i].lifeTime -= deltaTime;
 
-        if (glm::distance(fireballs[i].position, playerWorldPos) < 4.0f) {
-            playerHP -= 5;
-            AddMessage("Fireball hit!");
-            damageFlashTimer = 0.2f;
+        if (glm::distance(fireballs[i].position, playerWorldPos) < 4.5f) {
+
+            if (fireballs[i].type == FIRE) {
+                playerHP -= 5;
+                AddMessage("Fireball hit!");
+                damageFlashTimer = 0.2f;
+            }
+            else {
+                playerHP -= 8;
+                AddMessage("Ice blast hit!");
+                damageFlashTimer = 0.3f;
+            }
+
             fireballs[i].lifeTime = 0.0f;
         }
+
     }
 
     fireballs.erase(
@@ -1096,17 +1177,20 @@ void updateGameLogic() {
         interactionText = "Press E to enter the portal";
 
         if (eKeyPressed) {
+            playerWorldPos = iceIslandSpawn;
             camera.setCameraPosition(glm::vec3(
                 iceIslandSpawn.x,
                 iceIslandSpawn.y + 22.0f,
                 iceIslandSpawn.z
             ));
 
-            playerWorldPos = iceIslandSpawn;
+            horsePos = iceIslandSpawn;
 
-            AddMessage("You entered the Frozen Island");
+            isRiding = true;
+            AddMessage("You entered the Frozen Island with your horse");
         }
-    }
 
-    eKeyPressed = false;
+
+        eKeyPressed = false;
+    }
 }
