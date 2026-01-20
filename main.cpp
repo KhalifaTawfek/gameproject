@@ -55,14 +55,14 @@ struct Fireball {
     FireballType type = FIRE;    
 };
 
-float bossHitRadius = 30.0f;     
-float iceBossHitRadius = 30.0f; 
+float bossHitRadius = 100.0f;     
+float iceBossHitRadius = 100.0f; 
 
 std::vector<Fireball> fireballs;
 
 glm::vec3 bossPos(650.0f, -4.0f, 0.0f);
 bool bossActivated = false;
-float bossFlyHeight = 60.0f;
+float bossFlyHeight = 100.0f;
 glm::vec3 iceBossPos(400.0f, -4.0f, 400.0f);
 bool iceBossActivated = false;
 bool iceBossDead = false;
@@ -724,19 +724,38 @@ int main()
         }
 
 
+        GLuint timeLoc = glGetUniformLocation(shader.getId(), "time");
+        GLuint typeLoc = glGetUniformLocation(shader.getId(), "objectType");
+        glUniform1f(timeLoc, (float)glfwGetTime());
+        glUniform1i(typeLoc, 1); 
+
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 0.0f, 0.6f, 0.0f);
         glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 0);
         for (const auto& pos : treePositions) DrawMesh(treeModel, pos, glm::vec3(6.0f), false);
+
         if (bossActivated && !bossDead) {
-            for (const auto& pos : fireBossTrees) {
-                DrawMesh(treeModel, pos, glm::vec3(7.0f), false);
-            }
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texLava); 
+            glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
+
+            glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 1.0f, 1.0f, 1.0f);
+            glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 1); 
+
+            for (const auto& pos : fireBossTrees) DrawMesh(treeModel, pos, glm::vec3(7.0f), true);
         }
+
         if (iceBossActivated && !iceBossDead) {
-            for (const auto& pos : iceBossTrees) {
-                DrawMesh(treeModel, pos, glm::vec3(7.0f), false);
-            }
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, texIce); 
+            glUniform1i(glGetUniformLocation(shader.getId(), "texture_diffuse1"), 0);
+
+            glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 1.0f, 1.0f, 1.0f);
+            glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 1); 
+
+            for (const auto& pos : iceBossTrees) DrawMesh(treeModel, pos, glm::vec3(7.0f), true);
         }
+
+        glUniform1i(typeLoc, 0);
         glUniform3f(glGetUniformLocation(shader.getId(), "objectColor"), 1.0f, 1.0f, 1.0f);
         glUniform1i(glGetUniformLocation(shader.getId(), "useTexture"), 1);
         for (const auto& z : zombies) {
