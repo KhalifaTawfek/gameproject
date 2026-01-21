@@ -168,7 +168,7 @@ glm::mat4 BuildFPSItemModel(
     glm::mat4 rot = glm::mat4(1.0f);
     rot[0] = glm::vec4(camRight, 0.0f);
     rot[1] = glm::vec4(camUp, 0.0f);
-    rot[2] = glm::vec4(-camFront, 0.0f);
+    rot[2] = glm::vec4(-camUp, 0.0f); 
 
     model *= rot;
     model = glm::scale(model, scale);
@@ -823,6 +823,7 @@ int main()
             fix[2] = glm::vec4(-1.0f, 0.0f, 0.0f, 0.0f); 
 
             gunModel *= fix;
+            gunModel = glm::rotate(gunModel, glm::radians(20.0f), camRight);
 
 
             glActiveTexture(GL_TEXTURE0);
